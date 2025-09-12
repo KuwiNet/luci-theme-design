@@ -14,23 +14,6 @@
     --commonRadius1: 5px
  }
 
-@font-face {
-  font-family: "AlimamaFangYuanTi";
-  src: url('../fonts/AlimamaFangYuanTiVF-Thin.ttf') format('truetype'),
-       url('../fonts/AlimamaFangYuanTiVF-Thin.woff') format('woff'),
-       url('../fonts/AlimamaFangYuanTiVF-Thin.woff2') format('woff2');
-  font-weight: 100 900; 
-  font-style: normal;
-}
-
-html {
-  font-family: "AlimamaFangYuanTi", sans-serif;
-}
-
-.special-text {
-  font-family: Arial, sans-serif; 
-}
-
  [data-theme='light'] {
     --bg: #f1f4f5;
     --mainbg: #fff;
@@ -121,14 +104,12 @@ html {
 }
 
 @font-face {
-    font-family: 'icomoon';
-    src: url('../fonts/font.eot');
-    src: url('../fonts/font.eot') format('embedded-opentype'),
-    url('../fonts/font.ttf') format('truetype'),
-    url('../fonts/font.woff') format('woff'),
-    url('../fonts/font.svg') format('svg');
-    font-weight: normal;
-    font-style: normal;
+  font-family: "AlimamaFangYuanTi";
+  src: url('../fonts/AlimamaFangYuanTiVF-Thin.ttf') format('truetype'),
+       url('../fonts/AlimamaFangYuanTiVF-Thin.woff') format('woff'),
+       url('../fonts/AlimamaFangYuanTiVF-Thin.woff2') format('woff2');
+  font-weight: 100 900; 
+  font-style: normal;
 }
 
 @font-face {
@@ -343,7 +324,7 @@ text, line {
 .cbi-value-helpicon,
 .showSide,
 .main > .loading > span {
-    font-family: 'icomoon' !important;
+    font-family: 'AlimamaFangYuanTi' !important;
     font-size:10px;
     speak: none;
     font-style: normal !important;
