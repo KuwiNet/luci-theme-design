@@ -33,8 +33,9 @@ jobs:
 
       - name: Configure Git
         run: |
-          # 配置Git以使用令牌认证
-          git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+          # 使用更可靠的认证方式
+          git config --global credential.helper store
+          echo "https://${{ secrets.GITHUB_TOKEN }}:@github.com" > ~/.git-credentials
           # 关闭detached HEAD状态的提示
           git config --global advice.detachedHead false
 
