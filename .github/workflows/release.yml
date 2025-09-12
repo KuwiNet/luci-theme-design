@@ -37,9 +37,8 @@ jobs:
         run: | 
           cd openwrt-sdk
           
-          # 克隆所需的包
+          # 仅克隆luci-theme-design包
           git clone  --depth=1 -b "${{ github.ref_name }}" https://github.com/KuwiNet/luci-theme-design.git package/luci-theme-design
-          git clone https://github.com/KuwiNet/luci-app-design-config.git package/luci-app-design-config
           
           # 安装依赖
           sudo apt update && sudo apt install -y minify
@@ -51,9 +50,8 @@ jobs:
           echo "$(minify dev/design.js)" > htdocs/luci-static/design/js/design.js
           popd
 
-          # 更新并安装feeds，但排除可能引起冲突的包
+          # 更新并安装feeds，排除可能引起冲突的包
           ./scripts/feeds update -a
-          # 安装必要的feeds，避免安装python3-pymysql
           ./scripts/feeds install -a -p luci
           ./scripts/feeds install -a -p packages -x python3-pymysql
           ./scripts/feeds install -a -p routing
@@ -62,45 +60,45 @@ jobs:
           # 生成默认配置
           make defconfig
 
-          # 手动添加所需的包配置
+          # 仅添加luci-theme-design的配置
           echo "CONFIG_PACKAGE_luci-theme-design=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-design-config=y" >> .config
           
           # 禁用有问题的包以避免递归依赖
-          echo "# 禁用有问题的包以避免递归依赖" >> .config
           echo "CONFIG_PACKAGE_python3-pymysql=n" >> .config
 
-          # 处理配置，忽略错误继续执行
+          # 处理配置
           yes "" | make oldconfig || true
           
-          # 替代cleanconfig，直接删除可能有问题的配置缓存
+          # 清理配置缓存
           rm -f tmp/.config-package.in
           make defconfig
 
-          # 编译指定的包，使用-j1避免并行编译问题
+          # 仅编译luci-theme-design
           make package/luci-theme-design/compile -j1 V=s
-          make package/luci-app-design-config/compile -j1 V=s
 
           # 查找编译产物
           cd ..
           TARGET="$(find openwrt-sdk/bin/ -name 'luci-theme-design*.ipk')"
-          CONFIG_TARGET="$(find openwrt-sdk/bin/ -name 'luci-app-design-config*.ipk')"
-          CONFIG_I18N_TARGET="$(find openwrt-sdk/bin/ -name 'luci-i18n-design-config*.ipk')"
 
           # 输出结果
-          echo 'JSON_RESPONSE<<EOF' >> $GITHUB_OUTPUT
+          echo "TARGET_FILES<<EOF" >> $GITHUB_OUTPUT
           echo "$TARGET" >> $GITHUB_OUTPUT
-          echo "$CONFIG_TARGET" >> $GITHUB_OUTPUT
-          echo "$CONFIG_I18N_TARGET" >> $GITHUB_OUTPUT
-          echo 'EOF' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Get tag
         id: tag
+        if: startsWith(github.ref, 'refs/tags/')
         uses: dawidd6/action-get-tag@v1
         with:
           strip_v: false
+
+      - name: Set default tag for non-tag triggers
+        id: default_tag
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          echo "tag=dev-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
 
       - name: Upload to release
         uses: softprops/action-gh-release@v1
@@ -108,9 +106,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
         with:
-          name: ${{ steps.tag.outputs.tag }}
-          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag || steps.default_tag.outputs.tag }}
+          tag_name: ${{ steps.tag.outputs.tag || steps.default_tag.outputs.tag }}
           generate_release_notes: true
           files: |
-            ${{ steps.build.outputs.JSON_RESPONSE }}
+            ${{ steps.build.outputs.TARGET_FILES }}
     
