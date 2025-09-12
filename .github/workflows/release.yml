@@ -24,6 +24,13 @@ jobs:
           [ -f /etc/issue ] && cat /etc/issue
           ulimit -a
 
+      - name: Install Build Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential libncurses5-dev libncursesw5-dev \
+            zlib1g-dev gawk git gettext libssl-dev xsltproc wget unzip \
+            python3 python3-distutils rsync file minify
+
       - name: Download SDK
         run: |
           wget https://downloads.openwrt.org/releases/18.06.2/targets/x86/64/openwrt-sdk-18.06.2-x86-64_gcc-7.3.0_musl.Linux-x86_64.tar.xz
@@ -33,41 +40,56 @@ jobs:
 
       - name: Configure Git
         run: |
-          # 使用更可靠的认证方式
           git config --global credential.helper store
           echo "https://${{ secrets.GITHUB_TOKEN }}:@github.com" > ~/.git-credentials
-          # 关闭detached HEAD状态的提示
           git config --global advice.detachedHead false
 
-      - name: Build
-        id: build
+      - name: Prepare Packages
         run: | 
           cd openwrt-sdk
           
-          # 现在克隆仓库将自动使用配置的令牌
+          # 克隆所需的包
           git clone --depth=1 -b "${{ github.ref_name }}" https://github.com/KuwiNet/luci-theme-design.git package/luci-theme-design
           git clone --depth=1 https://github.com/KuwiNet/luci-app-design-config.git package/luci-app-design-config
           
-          sudo apt update && sudo apt install minify
-
+          # 处理前端文件
           pushd package/luci-theme-design
           echo "$(minify dev/style.css)" > htdocs/luci-static/design/css/style.css
           echo "$(minify dev/script.js)" > htdocs/luci-static/design/js/script.js
           echo "$(minify dev/design.js)" > htdocs/luci-static/design/js/design.js
           popd
 
-          ./scripts/feeds update -a && ./scripts/feeds install -a
+      - name: Update Feeds and Configure
+        run: |
+          cd openwrt-sdk
+          
+          # 更新并安装feeds
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          
+          # 创建默认配置
+          make defconfig
+          
+          # 添加我们的包到配置中
           echo "CONFIG_PACKAGE_luci-theme-design=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-design-config=y" >> .config
+          
+          # 验证配置
+          make oldconfig
 
-          make defconfig
-          make package/luci-theme-design/compile -j$(nproc)
-          make package/luci-app-design-config/compile -j$(nproc)
+      - name: Build Packages
+        id: build
+        run: | 
+          cd openwrt-sdk
+          
+          # 编译包，启用详细输出以便调试
+          make package/luci-theme-design/compile -j$(nproc) V=s
+          make package/luci-app-design-config/compile -j$(nproc) V=s
 
           cd ..
-          TARGET="$(find openwrt-sdk/bin/ | grep  luci-theme-design)"
-          CONFIG_TARGET="$(find openwrt-sdk/bin/ | grep luci-app-design-config)"
-          CONFIG_I18N_TARGET="$(find openwrt-sdk/bin/ | grep luci-i18n-design-config)"
+          TARGET="$(find openwrt-sdk/bin/ -name 'luci-theme-design_*.ipk')"
+          CONFIG_TARGET="$(find openwrt-sdk/bin/ -name 'luci-app-design-config_*.ipk')"
+          CONFIG_I18N_TARGET="$(find openwrt-sdk/bin/ -name 'luci-i18n-design-config_*.ipk')"
 
           echo "JSON_RESPONSE<<EOF" >> $GITHUB_OUTPUT
           echo "$TARGET" >> $GITHUB_OUTPUT
@@ -94,3 +116,4 @@ jobs:
           generate_release_notes: true
           files: |
             ${{ steps.build.outputs.JSON_RESPONSE }}
+    
