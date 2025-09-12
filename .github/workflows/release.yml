@@ -8,11 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     steps:
-
       - name: Initialization Environment
         env:
           DEBIAN_FRONTEND: noninteractive
@@ -26,46 +24,58 @@ jobs:
           [ -f /etc/issue ] && cat /etc/issue
           ulimit -a
 
-      - name: Download SDK
+      - name: Download OpenWRT 23.05.2 SDK
         run: |
-          wget https://downloads.openwrt.org/releases/18.06.2/targets/x86/64/openwrt-sdk-18.06.2-x86-64_gcc-7.3.0_musl.Linux-x86_64.tar.xz
-          xz -d openwrt-sdk-18.06.2-x86-64_gcc-7.3.0_musl.Linux-x86_64.tar.xz
-          tar -xf openwrt-sdk-18.06.2-x86-64_gcc-7.3.0_musl.Linux-x86_64.tar
-          mv openwrt-sdk-18.06.2-x86-64_gcc-7.3.0_musl.Linux-x86_64 openwrt-sdk
+          # 下载并解压OpenWRT 23.05.2 SDK
+          wget https://downloads.openwrt.org/releases/23.05.2/targets/x86/64/openwrt-sdk-23.05.2-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+          xz -d openwrt-sdk-23.05.2-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+          tar -xf openwrt-sdk-23.05.2-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar
+          mv openwrt-sdk-23.05.2-x86-64_gcc-12.3.0_musl.Linux-x86_64 openwrt-sdk
 
       - name: Build
         id: build
         run: | 
           cd openwrt-sdk
-          #echo -n > feeds.conf.default
-          #echo "src-git packages https://github.com/coolsnowwolf/packages" >> feeds.conf.default
-          #echo "src-git luci https://github.com/coolsnowwolf/luci" >> feeds.conf.default
-          #echo "src-git routing https://github.com/coolsnowwolf/routing" >> feeds.conf.default
-          #echo "src-git telephony https://git.openwrt.org/feed/telephony.git" >> feeds.conf.default
-
+          
+          # 克隆所需的包
           git clone  --depth=1 -b "${{ github.ref_name }}" https://github.com/KuwiNet/luci-theme-design.git package/luci-theme-design
           git clone https://github.com/KuwiNet/luci-app-design-config.git package/luci-app-design-config
-          sudo apt update && sudo apt install minify
+          
+          # 安装依赖
+          sudo apt update && sudo apt install -y minify
 
+          # 压缩静态资源
           pushd package/luci-theme-design
           echo "$(minify dev/style.css)" > htdocs/luci-static/design/css/style.css
           echo "$(minify dev/script.js)" > htdocs/luci-static/design/js/script.js
           echo "$(minify dev/design.js)" > htdocs/luci-static/design/js/design.js
           popd
 
+          # 更新并安装feeds
           ./scripts/feeds update -a && ./scripts/feeds install -a
+
+          # 生成默认配置
+          make defconfig
+
+          # 手动添加所需的包配置
           echo "CONFIG_PACKAGE_luci-theme-design=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-design-config=y" >> .config
 
-          make defconfig
+          # 处理配置冲突
+          make oldconfig || true
+          make cleanconfig
+
+          # 编译指定的包，使用-j$(nproc)加速编译
           make package/luci-theme-design/compile -j$(nproc)
           make package/luci-app-design-config/compile -j$(nproc)
 
+          # 查找编译产物
           cd ..
-          TARGET="$(find openwrt-sdk/bin/ | grep  luci-theme-design)"
-          CONFIG_TARGET="$(find openwrt-sdk/bin/ | grep luci-app-design-config)"
-          CONFIG_I18N_TARGET="$(find openwrt-sdk/bin/ | grep luci-i18n-design-config)"
+          TARGET="$(find openwrt-sdk/bin/ -name 'luci-theme-design*.ipk')"
+          CONFIG_TARGET="$(find openwrt-sdk/bin/ -name 'luci-app-design-config*.ipk')"
+          CONFIG_I18N_TARGET="$(find openwrt-sdk/bin/ -name 'luci-i18n-design-config*.ipk')"
 
+          # 输出结果
           echo 'JSON_RESPONSE<<EOF' >> $GITHUB_OUTPUT
           echo "$TARGET" >> $GITHUB_OUTPUT
           echo "$CONFIG_TARGET" >> $GITHUB_OUTPUT
@@ -78,7 +88,6 @@ jobs:
         id: tag
         uses: dawidd6/action-get-tag@v1
         with:
-        # Optionally strip `v` prefix
           strip_v: false
 
       - name: Upload to release
@@ -92,3 +101,4 @@ jobs:
           generate_release_notes: true
           files: |
             ${{ steps.build.outputs.JSON_RESPONSE }}
+    
