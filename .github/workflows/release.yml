@@ -43,8 +43,8 @@ jobs:
           #echo "src-git routing https://github.com/coolsnowwolf/routing" >> feeds.conf.default
           #echo "src-git telephony https://git.openwrt.org/feed/telephony.git" >> feeds.conf.default
 
-          git clone  --depth=1 -b "${{ github.ref_name }}" https://github.com/gngpp/luci-theme-design.git package/luci-theme-design
-          git clone https://github.com/gngpp/luci-app-design-config.git package/luci-app-design-config
+          git clone  --depth=1 -b "${{ github.ref_name }}" https://github.com/KuwiNet/luci-theme-design.git package/luci-theme-design
+          git clone https://github.com/KuwiNet/luci-app-design-config.git package/luci-app-design-config
           sudo apt update && sudo apt install minify
 
           pushd package/luci-theme-design
