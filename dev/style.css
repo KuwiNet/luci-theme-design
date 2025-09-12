@@ -14,6 +14,23 @@
     --commonRadius1: 5px
  }
 
+@font-face {
+  font-family: "AlimamaFangYuanTi";
+  src: url('../fonts/AlimamaFangYuanTiVF-Thin.ttf') format('truetype'),
+       url('../fonts/AlimamaFangYuanTiVF-Thin.woff') format('woff'),
+       url('../fonts/AlimamaFangYuanTiVF-Thin.woff2') format('woff2');
+  font-weight: 100 900; 
+  font-style: normal;
+}
+
+html {
+  font-family: "AlimamaFangYuanTi", sans-serif;
+}
+
+.special-text {
+  font-family: Arial, sans-serif; 
+}
+
  [data-theme='light'] {
     --bg: #f1f4f5;
     --mainbg: #fff;
