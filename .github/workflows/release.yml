@@ -8,9 +8,11 @@ on:
   workflow_dispatch:
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
     steps:
+
       - name: Initialization Environment
         env:
           DEBIAN_FRONTEND: noninteractive
@@ -24,22 +26,6 @@ jobs:
           [ -f /etc/issue ] && cat /etc/issue
           ulimit -a
 
-      - name: Install Build Dependencies
-        run: |
-          sudo apt update
-          # 分两步安装，先处理可能的python3-distutils问题
-          sudo apt install -y build-essential libncurses5-dev libncursesw5-dev \
-            zlib1g-dev gawk git gettext libssl-dev xsltproc wget unzip \
-            python3 rsync file minify
-          
-          # 尝试安装python3-distutils，如失败则使用替代方案
-          if ! sudo apt install -y python3-distutils; then
-            # 对于Ubuntu 22.04及以上版本，python3-distutils包含在python3-venv中
-            sudo apt install -y python3-venv
-            # 手动创建链接确保兼容性
-            sudo ln -s /usr/lib/python3*/distutils /usr/lib/python3*/distutils
-          fi
-
       - name: Download SDK
         run: |
           wget https://downloads.openwrt.org/releases/18.06.2/targets/x86/64/openwrt-sdk-18.06.2-x86-64_gcc-7.3.0_musl.Linux-x86_64.tar.xz
@@ -47,64 +33,44 @@ jobs:
           tar -xf openwrt-sdk-18.06.2-x86-64_gcc-7.3.0_musl.Linux-x86_64.tar
           mv openwrt-sdk-18.06.2-x86-64_gcc-7.3.0_musl.Linux-x86_64 openwrt-sdk
 
-      - name: Configure Git
-        run: |
-          git config --global credential.helper store
-          echo "https://${{ secrets.GITHUB_TOKEN }}:@github.com" > ~/.git-credentials
-          git config --global advice.detachedHead false
-
-      - name: Prepare Packages
+      - name: Build
+        id: build
         run: | 
           cd openwrt-sdk
-          
-          # 克隆所需的包
-          git clone --depth=1 -b "${{ github.ref_name }}" https://github.com/KuwiNet/luci-theme-design.git package/luci-theme-design
-          git clone --depth=1 https://github.com/KuwiNet/luci-app-design-config.git package/luci-app-design-config
-          
-          # 处理前端文件
+          #echo -n > feeds.conf.default
+          #echo "src-git packages https://github.com/coolsnowwolf/packages" >> feeds.conf.default
+          #echo "src-git luci https://github.com/coolsnowwolf/luci" >> feeds.conf.default
+          #echo "src-git routing https://github.com/coolsnowwolf/routing" >> feeds.conf.default
+          #echo "src-git telephony https://git.openwrt.org/feed/telephony.git" >> feeds.conf.default
+
+          git clone  --depth=1 -b "${{ github.ref_name }}" https://github.com/KuwiNet/luci-theme-design.git package/luci-theme-design
+          git clone https://github.com/KuwiNet/luci-app-design-config.git package/luci-app-design-config
+          sudo apt update && sudo apt install minify
+
           pushd package/luci-theme-design
           echo "$(minify dev/style.css)" > htdocs/luci-static/design/css/style.css
           echo "$(minify dev/script.js)" > htdocs/luci-static/design/js/script.js
           echo "$(minify dev/design.js)" > htdocs/luci-static/design/js/design.js
           popd
 
-      - name: Update Feeds and Configure
-        run: |
-          cd openwrt-sdk
-          
-          # 更新并安装feeds
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-          
-          # 创建默认配置
-          make defconfig
-          
-          # 添加我们的包到配置中
+          ./scripts/feeds update -a && ./scripts/feeds install -a
           echo "CONFIG_PACKAGE_luci-theme-design=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-design-config=y" >> .config
-          
-          # 验证配置
-          make oldconfig
 
-      - name: Build Packages
-        id: build
-        run: | 
-          cd openwrt-sdk
-          
-          # 编译包，启用详细输出以便调试
-          make package/luci-theme-design/compile -j$(nproc) V=s
-          make package/luci-app-design-config/compile -j$(nproc) V=s
+          make defconfig
+          make package/luci-theme-design/compile -j$(nproc)
+          make package/luci-app-design-config/compile -j$(nproc)
 
           cd ..
-          TARGET="$(find openwrt-sdk/bin/ -name 'luci-theme-design_*.ipk')"
-          CONFIG_TARGET="$(find openwrt-sdk/bin/ -name 'luci-app-design-config_*.ipk')"
-          CONFIG_I18N_TARGET="$(find openwrt-sdk/bin/ -name 'luci-i18n-design-config_*.ipk')"
+          TARGET="$(find openwrt-sdk/bin/ | grep  luci-theme-design)"
+          CONFIG_TARGET="$(find openwrt-sdk/bin/ | grep luci-app-design-config)"
+          CONFIG_I18N_TARGET="$(find openwrt-sdk/bin/ | grep luci-i18n-design-config)"
 
-          echo "JSON_RESPONSE<<EOF" >> $GITHUB_OUTPUT
+          echo 'JSON_RESPONSE<<EOF' >> $GITHUB_OUTPUT
           echo "$TARGET" >> $GITHUB_OUTPUT
           echo "$CONFIG_TARGET" >> $GITHUB_OUTPUT
           echo "$CONFIG_I18N_TARGET" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
 
           echo "status=success" >> $GITHUB_OUTPUT
 
@@ -112,17 +78,17 @@ jobs:
         id: tag
         uses: dawidd6/action-get-tag@v1
         with:
+        # Optionally strip `v` prefix
           strip_v: false
 
       - name: Upload to release
         uses: softprops/action-gh-release@v1
         if: steps.build.outputs.status == 'success' && !cancelled()
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
         with:
           name: ${{ steps.tag.outputs.tag }}
           tag_name: ${{ steps.tag.outputs.tag }}
           generate_release_notes: true
           files: |
             ${{ steps.build.outputs.JSON_RESPONSE }}
-    
