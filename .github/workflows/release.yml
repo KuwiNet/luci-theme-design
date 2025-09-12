@@ -31,14 +31,21 @@ jobs:
           tar -xf openwrt-sdk-18.06.2-x86-64_gcc-7.3.0_musl.Linux-x86_64.tar
           mv openwrt-sdk-18.06.2-x86-64_gcc-7.3.0_musl.Linux-x86_64 openwrt-sdk
 
+      - name: Configure Git
+        run: |
+          # 配置Git以使用令牌认证
+          git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+          # 关闭detached HEAD状态的提示
+          git config --global advice.detachedHead false
+
       - name: Build
         id: build
         run: | 
           cd openwrt-sdk
           
-          # 使用GitHub令牌克隆仓库，解决认证问题
-          git clone --depth=1 -b "${{ github.ref_name }}" https://${{ secrets.TOKEN }}@github.com/KuwiNet/luci-theme-design.git package/luci-theme-design
-          git clone --depth=1 https://${{ secrets.TOKEN }}@github.com/KuwiNet/luci-app-design-config.git package/luci-app-design-config
+          # 现在克隆仓库将自动使用配置的令牌
+          git clone --depth=1 -b "${{ github.ref_name }}" https://github.com/KuwiNet/luci-theme-design.git package/luci-theme-design
+          git clone --depth=1 https://github.com/KuwiNet/luci-app-design-config.git package/luci-app-design-config
           
           sudo apt update && sudo apt install minify
 
@@ -79,7 +86,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         if: steps.build.outputs.status == 'success' && !cancelled()
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           name: ${{ steps.tag.outputs.tag }}
           tag_name: ${{ steps.tag.outputs.tag }}
