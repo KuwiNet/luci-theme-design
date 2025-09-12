@@ -27,9 +27,18 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt update
+          # 分两步安装，先处理可能的python3-distutils问题
           sudo apt install -y build-essential libncurses5-dev libncursesw5-dev \
             zlib1g-dev gawk git gettext libssl-dev xsltproc wget unzip \
-            python3 python3-distutils rsync file minify
+            python3 rsync file minify
+          
+          # 尝试安装python3-distutils，如失败则使用替代方案
+          if ! sudo apt install -y python3-distutils; then
+            # 对于Ubuntu 22.04及以上版本，python3-distutils包含在python3-venv中
+            sudo apt install -y python3-venv
+            # 手动创建链接确保兼容性
+            sudo ln -s /usr/lib/python3*/distutils /usr/lib/python3*/distutils
+          fi
 
       - name: Download SDK
         run: |
