@@ -51,8 +51,13 @@ jobs:
           echo "$(minify dev/design.js)" > htdocs/luci-static/design/js/design.js
           popd
 
-          # 更新并安装feeds
-          ./scripts/feeds update -a && ./scripts/feeds install -a
+          # 更新并安装feeds，但排除可能引起冲突的包
+          ./scripts/feeds update -a
+          # 安装必要的feeds，避免安装python3-pymysql
+          ./scripts/feeds install -a -p luci
+          ./scripts/feeds install -a -p packages -x python3-pymysql
+          ./scripts/feeds install -a -p routing
+          ./scripts/feeds install -a -p telephony
 
           # 生成默认配置
           make defconfig
@@ -60,14 +65,21 @@ jobs:
           # 手动添加所需的包配置
           echo "CONFIG_PACKAGE_luci-theme-design=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-design-config=y" >> .config
+          
+          # 禁用有问题的包以避免递归依赖
+          echo "# 禁用有问题的包以避免递归依赖" >> .config
+          echo "CONFIG_PACKAGE_python3-pymysql=n" >> .config
 
-          # 处理配置冲突
-          make oldconfig || true
-          make cleanconfig
+          # 处理配置，忽略错误继续执行
+          yes "" | make oldconfig || true
+          
+          # 替代cleanconfig，直接删除可能有问题的配置缓存
+          rm -f tmp/.config-package.in
+          make defconfig
 
-          # 编译指定的包，使用-j$(nproc)加速编译
-          make package/luci-theme-design/compile -j$(nproc)
-          make package/luci-app-design-config/compile -j$(nproc)
+          # 编译指定的包，使用-j1避免并行编译问题
+          make package/luci-theme-design/compile -j1 V=s
+          make package/luci-app-design-config/compile -j1 V=s
 
           # 查找编译产物
           cd ..
