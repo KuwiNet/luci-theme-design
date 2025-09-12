@@ -9,8 +9,7 @@ on:
 
 jobs:
   fmt:
-    # 使用 GitHub 托管的 Ubuntu 20.04 Runner
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     permissions:
       contents: write
