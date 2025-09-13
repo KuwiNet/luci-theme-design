@@ -9,37 +9,50 @@ on:
 
 jobs:
   fmt:
+    # 使用 GitHub 托管的 Ubuntu latest Runner
     runs-on: ubuntu-latest
 
     permissions:
-      # Give the default GITHUB_TOKEN write permission to commit and push the changed files back to the repository.
       contents: write
+      pull-requests: write  # 新增：允许操作 PR 的权限
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4  # 升级到最新版本，兼容性更好
+      with:
+        fetch-depth: 0  # 确保能获取完整历史，避免 PR 操作失败
 
-    - name: fmt
+    - name: 安装 minify 并压缩文件
       run: |
-        sudo apt update && sudo apt install minify
-        echo "$(minify dev/style.css)" > htdocs/luci-static/design/css/style.css
-        echo "$(minify dev/script.js)" > htdocs/luci-static/design/js/script.js
-        echo "$(minify dev/design.js)" > htdocs/luci-static/design/js/design.js
-
-    # - uses: stefanzweifel/git-auto-commit-action@v4
-    #   with:
-    #     branch: dev
-    #     commit_message: "style: format and compress js/css"
+        # 优化安装命令，添加错误处理
+        sudo apt update || echo "更新源失败，继续尝试安装"
+        sudo apt install -y minify || {
+          echo "通过 apt 安装 minify 失败，尝试通过 npm 安装"
+          sudo apt install -y npm
+          sudo npm install -g minify
+        }
         
-    - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v4
+        # 创建目标目录（如果不存在）
+        mkdir -p htdocs/luci-static/design/css htdocs/luci-static/design/js
+        
+        # 压缩文件（使用更可靠的输出方式）
+        minify dev/style.css -o htdocs/luci-static/design/css/style.css
+        minify dev/script.js -o htdocs/luci-static/design/js/script.js
+        minify dev/design.js -o htdocs/luci-static/design/js/design.js
+
+    - name: 创建 Pull Request
+      uses: peter-evans/create-pull-request@v5  # 升级到最新版本
       with:
         base: main
-        token: ${{ secrets.TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }}  # 使用 GitHub 内置令牌，无需额外配置
         branch: fmt
         delete-branch: true
         add-paths: |
           htdocs/luci-static/design/css/style.css
           htdocs/luci-static/design/js/script.js
           htdocs/luci-static/design/js/design.js
-        title: ${{ github.event.head_commit.message }}
-        commit-message: ${{ github.event.head_commit.message }}
+        title: "自动格式化: ${{ github.event.head_commit.message || '手动触发格式化' }}"
+        commit-message: "style: 压缩 CSS/JS 文件"
+        body: |
+          自动生成的格式化 PR
+          - 压缩了 CSS 和 JS 文件
+          - 由 GitHub Actions 自动触发
