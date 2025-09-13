@@ -34,17 +34,9 @@
 %>
                 </div>
                 <footer class="footer" style="text-align:center">
-                    <a href="https://github.com/openwrt/luci">Powered by <%= ver.luciname %></a> |
-                    <a href="https://www.lede-project.org/"><%= ver.distversion %></a>
-                    <br />
-                    © 2025-2030 K. All Rights Reserved.uwiNet
-                    <% if #categories > 1 then %>
-                    <ul class="breadcrumb pull-right" id="modemenu">
-                        <% for i, r in ipairs(categories) do %>
-                        <li<% if category == r then %> class="active"<%end%>><a href="<%=controller%>/<%=r%>/"><%=striptags(translate(tree.nodes[r].title))%></a> <span class="divider">|</span></li>
-                        <% end %>
-                    </ul>
-                    <% end %>
+                    Support by <a class="luci-link" href="https://kuwi.net/"  target="_blank">KuWi</a> /
+            		Powered by <a class="luci-link" href="https://github.com/openwrt/luci"  target="_blank"><%= ver.luciname %></a> /
+            		<a href="https://github.com/KuwiNet/luci-theme-design"  target="_blank">Design Theme</a>
                 </footer>
             </div>
         </div>
