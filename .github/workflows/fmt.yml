@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-    # 只在非workflows目录有变更时触发
+    # 当只有workflows目录变更时不触发工作流
     paths-ignore:
       - '.github/workflows/**'
   repository_dispatch:
@@ -55,6 +55,15 @@ jobs:
         minify dev/script.js -o htdocs/luci-static/design/js/script.js
         minify dev/design.js -o htdocs/luci-static/design/js/design.js
 
+    - name: 暂存变更并过滤掉workflows目录
+      run: |
+        # 暂存所有变更
+        git add .
+        # 取消暂存.github/workflows目录的所有文件
+        git reset HEAD .github/workflows/
+        # 检查当前暂存的文件（调试用）
+        git status --porcelain
+
     - name: 创建 Pull Request
       uses: peter-evans/create-pull-request@v5
       with:
@@ -62,19 +71,12 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         branch: fmt
         delete-branch: true
-        # 明确指定要包含的路径，排除.github/workflows
-        add-paths: |
-          htdocs/luci-static/design/css/style.css
-          htdocs/luci-static/design/js/script.js
-          htdocs/luci-static/design/js/design.js
-        # 明确忽略workflows目录的变更
-        ignore-paths: |
-          .github/workflows/**
-        title: "自动格式化: ${{ github.event.head_commit.message || '手动触发格式化' }}"
+        # 不使用add-paths，而是依赖前面的git操作
         commit-message: "style: 压缩 CSS/JS 文件"
+        title: "自动格式化: ${{ github.event.head_commit.message || '手动触发格式化' }}"
         body: |
           自动生成的格式化 PR
           - 压缩了 CSS 和 JS 文件
           - 由 GitHub Actions 自动触发
-          - 不包含对工作流配置文件的修改
+          - 已排除 .github/workflows 目录的变更
     
