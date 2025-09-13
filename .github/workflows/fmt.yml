@@ -4,26 +4,43 @@ on:
   push:
     branches:
       - main
+    # 只在非workflows目录有变更时触发
+    paths-ignore:
+      - '.github/workflows/**'
   repository_dispatch:
   workflow_dispatch:
 
 jobs:
   fmt:
-    # 使用 GitHub 托管的 Ubuntu latest Runner
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
-      pull-requests: write  # 新增：允许操作 PR 的权限
+      pull-requests: write
 
     steps:
-    - uses: actions/checkout@v4  # 升级到最新版本，兼容性更好
+    - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # 确保能获取完整历史，避免 PR 操作失败
+        fetch-depth: 0
+
+    - name: 检查源文件是否存在
+      run: |
+        REQUIRED_FILES=(
+          "dev/style.css"
+          "dev/script.js"
+          "dev/design.js"
+        )
+        
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "错误: 文件 $file 不存在"
+            exit 1
+          fi
+        done
+        echo "所有源文件都存在，可以进行压缩"
 
     - name: 安装 minify 并压缩文件
       run: |
-        # 优化安装命令，添加错误处理
         sudo apt update || echo "更新源失败，继续尝试安装"
         sudo apt install -y minify || {
           echo "通过 apt 安装 minify 失败，尝试通过 npm 安装"
@@ -31,28 +48,33 @@ jobs:
           sudo npm install -g minify
         }
         
-        # 创建目标目录（如果不存在）
         mkdir -p htdocs/luci-static/design/css htdocs/luci-static/design/js
         
-        # 压缩文件（使用更可靠的输出方式）
+        # 压缩文件
         minify dev/style.css -o htdocs/luci-static/design/css/style.css
         minify dev/script.js -o htdocs/luci-static/design/js/script.js
         minify dev/design.js -o htdocs/luci-static/design/js/design.js
 
     - name: 创建 Pull Request
-      uses: peter-evans/create-pull-request@v5  # 升级到最新版本
+      uses: peter-evans/create-pull-request@v5
       with:
         base: main
-        token: ${{ secrets.GITHUB_TOKEN }}  # 使用 GitHub 内置令牌，无需额外配置
+        token: ${{ secrets.GITHUB_TOKEN }}
         branch: fmt
         delete-branch: true
+        # 明确指定要包含的路径，排除.github/workflows
         add-paths: |
           htdocs/luci-static/design/css/style.css
           htdocs/luci-static/design/js/script.js
           htdocs/luci-static/design/js/design.js
+        # 明确忽略workflows目录的变更
+        ignore-paths: |
+          .github/workflows/**
         title: "自动格式化: ${{ github.event.head_commit.message || '手动触发格式化' }}"
         commit-message: "style: 压缩 CSS/JS 文件"
         body: |
           自动生成的格式化 PR
           - 压缩了 CSS 和 JS 文件
           - 由 GitHub Actions 自动触发
+          - 不包含对工作流配置文件的修改
+    
