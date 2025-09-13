@@ -1,0 +1,90 @@
+name: fmt
+
+on:
+  push:
+    branches:
+      - main
+  repository_dispatch:
+  workflow_dispatch:
+
+jobs:
+  fmt:
+    # 使用 GitHub 托管的 Ubuntu latest Runner
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取完整历史，确保分支操作正常
+
+    - name: 安装 minify 并压缩文件
+      run: |
+        # 安装 minify 并处理可能的错误
+        sudo apt update || echo "更新源失败，继续尝试安装"
+        sudo apt install -y minify || {
+          echo "通过 apt 安装 minify 失败，尝试通过 npm 安装"
+          sudo apt install -y npm
+          sudo npm install -g minify
+        }
+        
+        # 创建目标目录（如果不存在）
+        mkdir -p htdocs/luci-static/design/css htdocs/luci-static/design/js
+        
+        # 压缩文件
+        minify dev/style.css -o htdocs/luci-static/design/css/style.css
+        minify dev/script.js -o htdocs/luci-static/design/js/script.js
+        minify dev/design.js -o htdocs/luci-static/design/js/design.js
+
+    - name: 创建 Pull Request 到 fmt 分支
+      uses: peter-evans/create-pull-request@v5
+      with:
+        base: main
+        token: ${{ secrets.GITHUB_TOKEN }}
+        branch: fmt
+        delete-branch: true
+        add-paths: |
+          htdocs/luci-static/design/css/style.css
+          htdocs/luci-static/design/js/script.js
+          htdocs/luci-static/design/js/design.js
+        title: "自动格式化: ${{ github.event.head_commit.message || '手动触发格式化' }}"
+        commit-message: "style: 压缩 CSS/JS 文件"
+        body: |
+          自动生成的格式化 PR
+          - 压缩了 CSS 和 JS 文件
+          - 由 GitHub Actions 自动触发
+
+    - name: 同步到 js 分支
+      run: |
+        # 配置 Git 身份
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        
+        # 拉取最新的 js 分支（如果不存在则创建）
+        git checkout js || git checkout -b js
+        
+        # 拉取 fmt 分支的最新更改
+        git checkout fmt
+        git pull origin fmt
+        
+        # 切换回 js 分支
+        git checkout js
+        
+        # 合并 fmt 分支的特定文件和目录到 js 分支
+        git checkout fmt -- \
+          .github \
+          htdocs \
+          luasrc \
+          root \
+          .gitignore \
+          Makefile
+        
+        # 提交更改
+        git add .
+        git commit -m "Sync from fmt branch: ${{ github.sha }}" || echo "没有需要同步的更改"
+        
+        # 推送更改到 js 分支
+        git push origin js
